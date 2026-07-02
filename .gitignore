@@ -1,0 +1,94 @@
+# =============================================================
+#  Root .gitignore — AI-Powered Performance Analysis Platform
+# =============================================================
+
+# ── SECRETS & CREDENTIALS (never commit these) ───────────────
+docker/.env
+docker/.env.*
+.env
+.env.*
+!.env.example
+!docker/.env.example
+
+# Certificate / key files
+*.pem
+*.key
+*.p12
+*.jks
+*.keystore
+*.truststore
+secrets.yml
+secrets.yaml
+credentials.json
+serviceAccountKey.json
+
+# ── MAVEN BUILD ARTIFACTS ─────────────────────────────────────
+**/target/
+!**/src/main/**/target/
+!**/src/test/**/target/
+*.class
+*.jar
+!.mvn/wrapper/maven-wrapper.jar
+!**/mvnw
+*.war
+*.ear
+
+# ── INTELLIJ IDEA ─────────────────────────────────────────────
+.idea/
+!.idea/.gitignore
+*.iml
+*.iws
+*.ipr
+out/
+
+# ── VS CODE ───────────────────────────────────────────────────
+.vscode/
+
+# ── ECLIPSE / STS ─────────────────────────────────────────────
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings/
+.springBeans
+.sts4-cache
+
+# ── NETBEANS ──────────────────────────────────────────────────
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+build/
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+# ── LOGS ──────────────────────────────────────────────────────
+*.log
+logs/
+/log/
+
+# ── OS FILES ──────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+desktop.ini
+ehthumbs.db
+
+# ── DOCKER LOCAL DATA ─────────────────────────────────────────
+# Named volumes are managed by Docker; exclude any local mounts
+docker/data/
+docker/postgres-data/
+docker/redis-data/
+
+# ── TEMPORARY & TEST FILES ────────────────────────────────────
+*.tmp
+*.bak
+*.swp
+*.orig
+*~
+/tmp/
+uploads/

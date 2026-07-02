@@ -1,0 +1,55 @@
+spring:
+  application:
+    name: report-service
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.add.type.headers: false
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:5432/report_db
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
+  jpa:
+    hibernate:
+      ddl-auto: none
+    show-sql: false
+    open-in-view: false
+  flyway:
+    locations: classpath:db/migration
+    enabled: false
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 55MB
+
+server:
+  port: 8082
+
+jwt:
+  secret: ${JWT_SECRET:bXlTdXBlclNlY3JldEtleUZvckpXVFNpZ25pbmdXaXRoSFMyNTZBbGdvcml0aG0xMjM0NTY3ODk=}
+  access-token-expiry-ms: 900000
+  refresh-token-expiry-ms: 604800000
+
+app:
+  storage:
+    upload-dir: ${UPLOAD_DIR:/app/uploads}
+  kafka:
+    topic:
+      report-uploaded: report-uploaded
+      analysis-completed: analysis-completed
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://${EUREKA_HOST:localhost}:8761/eureka/
+  instance:
+    prefer-ip-address: true
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html

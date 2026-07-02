@@ -1,0 +1,5 @@
+spring:
+  application:
+    name: report-service
+  config:
+    import: "optional:configserver:http://${CONFIG_USERNAME:config}:${CONFIG_PASSWORD:config-secret}@${CONFIG_SERVER_HOST:localhost}:8888"

@@ -1,0 +1,267 @@
+version: "3.9"
+
+services:
+  # ── Infrastructure ─────────────────────────────────────────────────────────
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: platform-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - platform-net
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.1
+    container_name: platform-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - platform-net
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.1
+    container_name: platform-kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "29092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_NUM_PARTITIONS: 3
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics --bootstrap-server kafka:9092 --list"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - platform-net
+
+  redis:
+    image: redis:7.2-alpine
+    container_name: platform-redis
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    networks:
+      - platform-net
+
+  # ── Platform Services ──────────────────────────────────────────────────────
+
+  discovery-server:
+    build:
+      context: ..
+      dockerfile: infrastructure/discovery-server/Dockerfile
+    container_name: platform-discovery-server
+    ports:
+      - "8761:8761"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8761/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - platform-net
+
+  config-server:
+    build:
+      context: ..
+      dockerfile: infrastructure/config-server/Dockerfile
+    container_name: platform-config-server
+    ports:
+      - "8888:8888"
+    depends_on:
+      discovery-server:
+        condition: service_healthy
+    environment:
+      CONFIG_PASSWORD: ${CONFIG_PASSWORD:-config-secret}
+      EUREKA_HOST: discovery-server
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8888/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - platform-net
+
+  api-gateway:
+    build:
+      context: ..
+      dockerfile: infrastructure/api-gateway/Dockerfile
+    container_name: platform-api-gateway
+    ports:
+      - "8080:8080"
+    depends_on:
+      config-server:
+        condition: service_healthy
+      discovery-server:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      JWT_SECRET: ${JWT_SECRET}
+      CONFIG_SERVER_HOST: config-server
+      CONFIG_PASSWORD: ${CONFIG_PASSWORD:-config-secret}
+      EUREKA_HOST: discovery-server
+      REDIS_HOST: redis
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+    networks:
+      - platform-net
+
+  user-service:
+    build:
+      context: ..
+      dockerfile: services/user-service/Dockerfile
+    container_name: platform-user-service
+    ports:
+      - "8081:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      config-server:
+        condition: service_healthy
+      discovery-server:
+        condition: service_healthy
+    environment:
+      DB_HOST: postgres
+      DB_USERNAME: ${DB_USERNAME:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      JWT_SECRET: ${JWT_SECRET}
+      CONFIG_SERVER_HOST: config-server
+      CONFIG_PASSWORD: ${CONFIG_PASSWORD:-config-secret}
+      EUREKA_HOST: discovery-server
+      REDIS_HOST: redis
+    networks:
+      - platform-net
+
+  report-service:
+    build:
+      context: ..
+      dockerfile: services/report-service/Dockerfile
+    container_name: platform-report-service
+    ports:
+      - "8082:8082"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      config-server:
+        condition: service_healthy
+      discovery-server:
+        condition: service_healthy
+    environment:
+      DB_HOST: postgres
+      DB_USERNAME: ${DB_USERNAME:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      JWT_SECRET: ${JWT_SECRET}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      CONFIG_SERVER_HOST: config-server
+      CONFIG_PASSWORD: ${CONFIG_PASSWORD:-config-secret}
+      EUREKA_HOST: discovery-server
+      UPLOAD_DIR: /app/uploads
+    volumes:
+      - report_uploads:/app/uploads
+    networks:
+      - platform-net
+
+  analysis-service:
+    build:
+      context: ..
+      dockerfile: services/analysis-service/Dockerfile
+    container_name: platform-analysis-service
+    ports:
+      - "8083:8083"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      config-server:
+        condition: service_healthy
+      discovery-server:
+        condition: service_healthy
+    environment:
+      DB_HOST: postgres
+      DB_USERNAME: ${DB_USERNAME:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      JWT_SECRET: ${JWT_SECRET}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      CONFIG_SERVER_HOST: config-server
+      CONFIG_PASSWORD: ${CONFIG_PASSWORD:-config-secret}
+      EUREKA_HOST: discovery-server
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      AI_MODEL: ${AI_MODEL:-anthropic/claude-3.5-sonnet}
+    volumes:
+      - report_uploads:/app/uploads:ro
+    networks:
+      - platform-net
+
+  notification-service:
+    build:
+      context: ..
+      dockerfile: services/notification-service/Dockerfile
+    container_name: platform-notification-service
+    ports:
+      - "8084:8084"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      config-server:
+        condition: service_healthy
+      discovery-server:
+        condition: service_healthy
+    environment:
+      DB_HOST: postgres
+      DB_USERNAME: ${DB_USERNAME:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      JWT_SECRET: ${JWT_SECRET}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      CONFIG_SERVER_HOST: config-server
+      CONFIG_PASSWORD: ${CONFIG_PASSWORD:-config-secret}
+      EUREKA_HOST: discovery-server
+    networks:
+      - platform-net
+
+volumes:
+  postgres_data:
+  redis_data:
+  report_uploads:
+
+networks:
+  platform-net:
+    driver: bridge

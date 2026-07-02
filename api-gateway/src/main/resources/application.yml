@@ -1,0 +1,33 @@
+spring:
+  application:
+    name: api-gateway
+  config:
+    import: "optional:configserver:http://config:${CONFIG_PASSWORD:config-secret}@${CONFIG_SERVER_HOST:localhost}:8888"
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration
+
+# Fallback values used when config server is unreachable.
+# Config server overrides these when it is running.
+jwt:
+  secret: ${JWT_SECRET:bXlTdXBlclNlY3JldEtleUZvckpXVFNpZ25pbmdXaXRoSFMyNTZBbGdvcml0aG0xMjM0NTY3ODk=}
+
+server:
+  port: ${SERVER_PORT:8080}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,gateway
+  endpoint:
+    health:
+      show-details: when-authorized
+    gateway:
+      enabled: true
+
+logging:
+  level:
+    com.platform.gateway: DEBUG
+    org.springframework.cloud.gateway: INFO
+    org.springframework.security: INFO
