@@ -92,3 +92,23 @@ docker/redis-data/
 *~
 /tmp/
 uploads/
+
+# ── LOCAL TOOL & ASSISTANT CONFIGURATION (kept out of the repository) ──
+.claude/
+CLAUDE.md
+CLAUDE.local.md
+AGENTS.md
+.aider*
+.cursor/
+.cursorrules
+.windsurf/
+.codex/
+.copilot/
+.github/copilot-instructions.md
+.github/instructions/
+.vscode/mcp.json
+.mcp.json
+.continue/
+.clinerules
+.roo/
+.rules/
